@@ -1,457 +1,313 @@
-# LayerDiffuse Alpha API - Deployment Documentation
+# LayerDiffuse Alpha API - Simple Deployment Guide
 
-## Overview
+## What This Does
 
-This API provides a simple endpoint for generating PNG images with transparent backgrounds using Stable Diffusion XL and the LayerDiffuse extension.
+This API generates PNG images with **transparent backgrounds** from text prompts using AI. 
 
-**API Endpoint:** `POST /alpha/v1/txt2img`
-
-**Input:** Text prompt  
-**Output:** URL to generated PNG with alpha transparency
+**Input:** `"a red apple"`  
+**Output:** URL to a PNG image of a red apple with transparent background
 
 ---
 
-## Table of Contents
+## Step-by-Step Runpod Deployment
 
-1. [System Requirements](#system-requirements)
-2. [Quick Start (Local)](#quick-start-local)
-3. [API Reference](#api-reference)
-4. [Runpod Deployment](#runpod-deployment)
-5. [Configuration](#configuration)
-6. [Scaling for Multiple Users](#scaling-for-multiple-users)
-7. [Troubleshooting](#troubleshooting)
-8. [Licensing](#licensing)
+### Step 1: Create Runpod Account
 
----
+1. Go to https://runpod.io
+2. Sign up for an account
+3. Add credits to your account ($10-20 minimum)
 
-## System Requirements
+### Step 2: Launch a GPU Pod
 
-### Hardware
-- **GPU:** NVIDIA GPU with 12GB+ VRAM (RTX 3080/4080 or better recommended)
-- **RAM:** 16GB+ system memory
-- **Storage:** 20GB+ for models and outputs
+1. Click **"Deploy"** → **"GPU Pods"**
+2. **Choose GPU:**
+   - **RTX 4090** (24GB VRAM) - Recommended
+   - **RTX 3090** (24GB VRAM) - Good
+   - **A5000** (24GB VRAM) - Good
+   - **RTX 4080** (16GB VRAM) - Minimum
+3. **Choose Template:** 
+   - Select **"PyTorch 2.0"** or **"RunPod PyTorch"**
+4. **Storage:**
+   - Container Disk: **50GB**
+   - Volume Disk: **50GB** (optional but recommended)
+5. Click **"Deploy On Demand"**
 
-### Software
-- **OS:** Windows 10/11, Linux (Ubuntu 20.04+)
-- **Python:** 3.10.x
-- **CUDA:** 11.8 or 12.1
-- **Git:** Latest version
+### Step 3: Connect to Your Pod
 
----
+1. Wait for pod to start (Status: Running)
+2. Click **"Connect"** → **"Start Web Terminal"**
+3. You'll see a terminal window
 
-## Quick Start (Local)
+### Step 4: Download the Code
 
-### 1. Clone and Setup
-
-```bash
-git clone https://github.com/lllyasviel/stable-diffusion-webui-forge.git
-cd stable-diffusion-webui-forge
-```
-
-### 2. Install Dependencies
-
-**Windows:**
-```powershell
-.\webui.bat
-# Wait for initial setup to complete, then close
-```
-
-**Linux:**
-```bash
-./webui.sh
-# Wait for initial setup to complete, then close
-```
-
-### 3. Download Required Model
-
-Download **Juggernaut XL v6** (or any SDXL model) and place in:
-```
-models/Stable-diffusion/
-```
-
-### 4. Install LayerDiffuse Extension
+In the terminal, run these commands **one by one**:
 
 ```bash
-cd extensions
-git clone https://github.com/layerdiffusion/sd-forge-layerdiffuse.git
+cd /workspace
+```
+
+```bash
+git clone https://github.com/igabhix001/stable-diffusion-webui.git
+```
+
+
+```bash
+cd stable-diffusion-webui
+```
+
+### Step 5: Confirm Python Version (IMPORTANT)
+
+ This project is **tested with Python 3.10.6** (Python 3.10.x usually works, but avoid 3.11/3.12).
+
+ Run:
+
+```bash
+python3.10 --version
+```
+
+ You must see **Python 3.10.x**.
+
+ Recommended (tested): **Python 3.10.6**.
+
+ If `python` is not 3.10.x, use `python3.10` in the commands below (or install Python 3.10 in your Runpod template).
+
+ If `python3.10` is missing, install it (Ubuntu/Debian images):
+
+ ```bash
+ apt-get update
+ apt-get install -y python3.10 python3.10-venv python3.10-dev
+ ```
+
+ After installing, confirm again:
+
+ ```bash
+ python3.10 --version
+ ```
+
+### Step 6: Download Required Models
+
+Run these commands to download the AI models:
+
+```bash
+cd models/Stable-diffusion
+```
+
+```bash
+wget "https://civitai.com/api/download/models/198530" -O juggernautXL_v6.safetensors
+```
+
+```bash
 cd ..
 ```
 
-### 5. Start API Server
-
-**Windows (PowerShell):**
-```powershell
-.\venv\Scripts\python.exe launch.py --nowebui --api
-```
-
-**Linux:**
 ```bash
-./venv/bin/python launch.py --nowebui --api
+mkdir -p layer_model
 ```
 
-The API will be available at: `http://127.0.0.1:7861`
+```bash
+wget "https://huggingface.co/lllyasviel/LayerDiffuse_Diffusers/resolve/main/ld_diffusers_sdxl_attn.safetensors" \
+  -O layer_model/layer_xl_transparent_attn.safetensors
+```
 
-### 6. Verify Installation
+```bash
+wget "https://huggingface.co/lllyasviel/LayerDiffuse_Diffusers/resolve/main/ld_diffusers_sdxl_vae_transparent_decoder.safetensors" \
+  -O layer_model/vae_transparent_decoder.safetensors
+```
 
-Open in browser: `http://127.0.0.1:7861/docs`
+```bash
+wget "https://huggingface.co/lllyasviel/LayerDiffuse_Diffusers/resolve/main/ld_diffusers_sdxl_vae_transparent_encoder.safetensors" \
+  -O layer_model/vae_transparent_encoder.safetensors
+```
 
-You should see the Swagger API documentation with `/alpha/v1/txt2img` endpoint listed.
+```bash
+cd ../..
+```
+
+### Step 7: Create Virtual Environment (Python 3.10.x)
+
+```bash
+python3.10 -m venv venv
+```
+
+```bash
+source venv/bin/activate
+```
+
+```bash
+python -m pip install --upgrade pip
+```
+
+#### Check GPU + Driver (recommended)
+
+Run:
+
+```bash
+nvidia-smi
+```
+
+If `nvidia-smi` works, the GPU driver is available.
+
+### Step 8: Start the API Server (API ONLY, no WebUI)
+
+```bash
+python launch.py --nowebui --api --listen --port 7861
+```
+
+
+First run can take **5-15 minutes** because it downloads and installs dependencies.
+
+#### Verify CUDA + PyTorch
+
+In another terminal (after the server starts or after install), run:
+
+```bash
+python -c "import torch; print('torch:', torch.__version__); print('cuda build:', torch.version.cuda); print('cuda available:', torch.cuda.is_available()); print('gpu:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'N/A')"
+```
+
+> **Important:** Use `--nowebui` to run API-only mode (no web interface)
+
+Wait until you see:
+```
+Application startup complete.
+Uvicorn running on http://0.0.0.0:7861
+```
+
+### Step 9: Expose the Port
+
+1. In Runpod dashboard, go to your pod
+2. Click **"Connect"** 
+3. Under **"TCP Port Mapping"**, add:
+   - **Internal Port:** 7861
+   - **External Port:** (leave blank, it will auto-assign)
+4. Click **"Set Port"**
+5. Copy the **External URL** (something like `https://abc123-7861.proxy.runpod.net`)
 
 ---
 
-## API Reference
+## If Torch/CUDA Installation Fails (Rare)
 
-### Generate Image
+If you see an error like **"Your device does not support the current version of Torch/CUDA"**:
 
-**Endpoint:** `POST /alpha/v1/txt2img`
+1. Stop the server
+2. Try installing the **CUDA 11.8 (cu118)** wheels instead:
 
-**Request Body:**
-```json
-{
-  "prompt": "an apple, high quality",
-  "negative_prompt": "bad, ugly",
-  "seed": 12345
-}
+```bash
+export TORCH_INDEX_URL="https://download.pytorch.org/whl/cu118"
+python launch.py --reinstall-torch --nowebui --api --listen --port 7861
 ```
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `prompt` | string | ✅ Yes | - | Text description of the image |
-| `negative_prompt` | string | No | "bad, ugly" | What to avoid in generation |
-| `seed` | integer | No | 12345 | Random seed for reproducibility |
-
-**Response:**
-```json
-{
-  "url": "http://127.0.0.1:7861/alpha/v1/file/alpha_1702500000_abc123.png",
-  "filename": "alpha_1702500000_abc123.png",
-  "info": "{\"prompt\": \"an apple, high quality\", ...}"
-}
-```
-
-### Retrieve Image
-
-**Endpoint:** `GET /alpha/v1/file/{filename}`
-
-Returns the PNG image file directly.
 
 ---
 
-## API Usage Examples
+## Testing the API
 
-### cURL (Linux/Mac)
+### Test 1: Check if API is Running
+
+In a new terminal tab (or your local computer), run:
 
 ```bash
-curl -X POST "http://YOUR_SERVER:7861/alpha/v1/txt2img" \
+curl https://YOUR_RUNPOD_URL/docs
+```
+
+You should see HTML content (the API documentation page).
+
+### Test 2: Generate Your First Image
+
+```bash
+curl -X POST "https://YOUR_RUNPOD_URL/alpha/v1/txt2img" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "a red apple on white background, high quality"}'
 ```
 
-### PowerShell (Windows)
-
-```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:7861/alpha/v1/txt2img" `
-  -Method POST `
-  -ContentType "application/json" `
-  -Body '{"prompt": "a red apple on white background, high quality"}'
-```
-
-### Python
-
-```python
-import requests
-
-response = requests.post(
-    "http://YOUR_SERVER:7861/alpha/v1/txt2img",
-    json={"prompt": "a red apple on white background, high quality"}
-)
-
-data = response.json()
-print(f"Image URL: {data['url']}")
-
-# Download the image
-img_response = requests.get(data['url'])
-with open("output.png", "wb") as f:
-    f.write(img_response.content)
-```
-
-### JavaScript/Node.js
-
-```javascript
-const response = await fetch("http://YOUR_SERVER:7861/alpha/v1/txt2img", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ prompt: "a red apple on white background, high quality" })
-});
-
-const data = await response.json();
-console.log("Image URL:", data.url);
-```
-
----
-
-## Runpod Deployment
-
-### Option A: Using Runpod Template (Recommended)
-
-1. **Create a Runpod Account** at https://runpod.io
-
-2. **Deploy a GPU Pod:**
-   - Select GPU: RTX 4090 (24GB) or A5000 (24GB)
-   - Template: PyTorch 2.0 / CUDA 11.8
-   - Container Disk: 50GB
-   - Volume Disk: 50GB (for models)
-
-3. **Connect via SSH/Terminal**
-
-4. **Clone Repository:**
-   ```bash
-   cd /workspace
-   git clone https://github.com/lllyasviel/stable-diffusion-webui-forge.git
-   cd stable-diffusion-webui-forge
-   ```
-
-5. **Run Initial Setup:**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate
-   pip install -r requirements_versions.txt
-   ```
-
-6. **Download Model:**
-   ```bash
-   cd models/Stable-diffusion
-   wget "YOUR_MODEL_URL" -O juggernautXL_v6.safetensors
-   cd ../..
-   ```
-
-7. **Install LayerDiffuse:**
-   ```bash
-   cd extensions
-   git clone https://github.com/layerdiffusion/sd-forge-layerdiffuse.git
-   cd ..
-   ```
-
-8. **Start API Server:**
-   ```bash
-   python launch.py --nowebui --api --listen --port 7861
-   ```
-
-9. **Expose Port:**
-   - In Runpod dashboard, go to "Connect"
-   - Add TCP port 7861
-   - Use the provided public URL
-
-### Option B: Using Docker
-
-```dockerfile
-# Dockerfile
-FROM pytorch/pytorch:2.0.1-cuda11.8-cudnn8-runtime
-
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y git wget
-
-RUN git clone https://github.com/lllyasviel/stable-diffusion-webui-forge.git .
-
-RUN pip install -r requirements_versions.txt
-
-# Install LayerDiffuse
-RUN cd extensions && git clone https://github.com/layerdiffusion/sd-forge-layerdiffuse.git
-
-EXPOSE 7861
-
-CMD ["python", "launch.py", "--nowebui", "--api", "--listen", "--port", "7861"]
-```
-
----
-
-## Configuration
-
-### Fixed Generation Parameters
-
-The API uses these optimized defaults:
-
-| Parameter | Value |
-|-----------|-------|
-| Steps | 20 |
-| Sampler | DPM++ 2M SDE |
-| Scheduler | Karras |
-| CFG Scale | 5 |
-| Width | 1024 |
-| Height | 1024 |
-| LayerDiffuse | Attention Injection (SDXL) |
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `COMMANDLINE_ARGS` | CLI arguments | - |
-| `CUDA_VISIBLE_DEVICES` | GPU selection | 0 |
-
-### Command Line Arguments
-
-| Argument | Description |
-|----------|-------------|
-| `--nowebui` | API-only mode (no Gradio UI) |
-| `--api` | Enable API endpoints |
-| `--listen` | Listen on all interfaces (0.0.0.0) |
-| `--port 7861` | Custom port |
-| `--cors-allow-origins "*"` | Enable CORS for all origins |
-
----
-
-## Scaling for Multiple Users
-
-### Current Architecture
-
-```
-[Client] → [API Server] → [GPU Queue] → [Response]
-```
-
-- Requests are processed sequentially
-- Each image takes ~15-30 seconds
-- Queue handles concurrent requests
-
-### Scaling Options
-
-#### Option 1: Single Pod (Up to 5 concurrent users)
-- Users experience queue wait times
-- Simple setup, lowest cost
-
-#### Option 2: Multiple Pods with Load Balancer (20+ users)
-
-```
-                    ┌─→ [Pod 1 - GPU]
-[Client] → [Nginx] ─┼─→ [Pod 2 - GPU]
-                    ├─→ [Pod 3 - GPU]
-                    └─→ [Pod 4 - GPU]
-```
-
-**Nginx Configuration:**
-```nginx
-upstream forge_api {
-    least_conn;
-    server pod1.runpod.io:7861;
-    server pod2.runpod.io:7861;
-    server pod3.runpod.io:7861;
-    server pod4.runpod.io:7861;
-}
-
-server {
-    listen 80;
-    
-    location / {
-        proxy_pass http://forge_api;
-        proxy_read_timeout 120s;
-    }
+**Expected Response:**
+```json
+{
+  "url": "https://YOUR_RUNPOD_URL/alpha/v1/file/alpha_1234567890_abc123.png",
+  "filename": "alpha_1234567890_abc123.png",
+  "info": "..."
 }
 ```
 
-#### Option 3: Runpod Serverless (Auto-scaling)
+### Test 3: View the Generated Image
 
-Runpod offers serverless GPU endpoints that auto-scale based on demand. This is ideal for variable traffic.
+Copy the `url` from the response and open it in your browser. You should see a PNG image of a red apple with transparent background.
 
-### Capacity Planning
+---
 
-| Pods | Concurrent Users | Avg Wait Time |
-|------|------------------|---------------|
-| 1 | 5 | 60-90s |
-| 2 | 10 | 30-45s |
-| 4 | 20 | 15-30s |
-| 8 | 40 | <15s |
+## API Usage
+
+### Basic Request
+
+```bash
+curl -X POST "https://YOUR_RUNPOD_URL/alpha/v1/txt2img" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "YOUR_TEXT_HERE"}'
+```
+
+### Advanced Request
+
+```bash
+curl -X POST "https://YOUR_RUNPOD_URL/alpha/v1/txt2img" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "a beautiful cat sitting on a chair, high quality",
+    "negative_prompt": "blurry, low quality, ugly",
+    "seed": 42
+  }'
+```
+
+### Parameters
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `prompt` | Yes | - | What you want to generate |
+| `negative_prompt` | No | "bad, ugly" | What to avoid |
+| `seed` | No | 12345 | Number for consistent results |
+
+---
+
+## Important Settings
+
+The API uses these fixed settings for best quality:
+
+- **Image Size:** 1024x1024 pixels
+- **Steps:** 20 (generation quality)
+- **Sampler:** DPM++ 2M SDE Karras
+- **CFG Scale:** 5
+- **Format:** PNG with transparency
+
+You cannot change these settings through the API - they're optimized for best results.
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
+### Problem: "CUDA out of memory"
+**Solution:** Your GPU doesn't have enough memory. Use RTX 4090 (24GB) or RTX 3090 (24GB).
 
-#### 1. "CUDA out of memory"
-- **Cause:** GPU VRAM insufficient
-- **Fix:** Use a GPU with 12GB+ VRAM, or reduce image size
+### Problem: "Model not found"
+**Solution:** Make sure you downloaded the model file to `models/Stable-diffusion/`
 
-#### 2. "Model not found"
-- **Cause:** SDXL model not in correct directory
-- **Fix:** Place `.safetensors` file in `models/Stable-diffusion/`
+### Problem: "Connection refused"
+**Solution:** 
+1. Make sure you used `--listen` flag when starting
+2. Check that port 7861 is exposed in Runpod dashboard
 
-#### 3. "LayerDiffuse not working"
-- **Cause:** Extension not installed or incompatible
-- **Fix:** 
-  ```bash
-  cd extensions
-  rm -rf sd-forge-layerdiffuse
-  git clone https://github.com/layerdiffusion/sd-forge-layerdiffuse.git
-  ```
+### Problem: "Extension not working"
+**Solution:** The LayerDiffuse extension is already included in your GitHub repo.
 
-#### 4. "Connection refused"
-- **Cause:** Server not running or wrong port
-- **Fix:** Ensure `--listen` flag is used for remote access
-
-#### 5. "API returns 500 error"
-- **Cause:** Various (check server logs)
-- **Fix:** Check terminal output for detailed error message
-
-### Health Check
-
-```bash
-curl http://YOUR_SERVER:7861/sdapi/v1/sd-models
-```
-
-Should return list of available models.
-
----
-
-## Licensing
-
-### Components and Licenses
-
-| Component | License | Commercial Use |
-|-----------|---------|----------------|
-| Stable Diffusion WebUI Forge | AGPL-3.0 | ✅ Yes* |
-| LayerDiffuse | Apache-2.0 | ✅ Yes |
-| SDXL Base Model | CreativeML Open RAIL++-M | ✅ Yes** |
-| Juggernaut XL | CreativeML Open RAIL++-M | ✅ Yes** |
-| FastAPI | MIT | ✅ Yes |
-| PyTorch | BSD-3 | ✅ Yes |
-
-**\* AGPL-3.0 Note:** If you modify the Forge code and provide it as a network service, you must make your modifications available under AGPL-3.0.
-
-**\*\* Model License Restrictions:**
-- Cannot use for illegal content
-- Cannot use for deepfakes without consent
-- Cannot claim model as proprietary
-- Generated images can be used commercially
-
-### Summary
-
-✅ **You CAN:**
-- Use this system for commercial projects
-- Charge customers for generated images
-- Deploy on your own infrastructure
-- Modify the code for your needs
-
-⚠️ **You MUST:**
-- Share code modifications if distributing as a service (AGPL-3.0)
-- Comply with model usage restrictions
-- Not generate prohibited content
+### Problem: API returns error 500
+**Solution:** Check the terminal where you started the server for error messages.
 
 ---
 
 ## Support
 
-For issues with:
-- **Forge:** https://github.com/lllyasviel/stable-diffusion-webui-forge/issues
-- **LayerDiffuse:** https://github.com/layerdiffusion/sd-forge-layerdiffuse/issues
+If you encounter issues:
+1. Check the terminal output for error messages
+2. Verify all models are downloaded correctly
+3. Ensure you're using a compatible GPU (12GB+ VRAM)
+4. Make sure all commands were run in the correct order
 
 ---
 
-## Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0.0 | 2024-12 | Initial release with `/alpha/v1/txt2img` endpoint |
-
----
-
-*Documentation generated for LayerDiffuse Alpha API*
+*This guide is designed for non-technical users. Follow each step exactly as written.*
