@@ -32,6 +32,9 @@ import piexif
 import piexif.helper
 from contextlib import closing
 from modules.progress import create_task_id, add_task_to_queue, start_task, finish_task, current_task
+import secrets
+from pathlib import Path
+from fastapi.responses import FileResponse
 
 def script_name_to_index(name, scripts):
     try:
@@ -243,6 +246,9 @@ class Api:
         self.add_api_route("/sdapi/v1/script-info", self.get_script_info, methods=["GET"], response_model=list[models.ScriptInfo])
         self.add_api_route("/sdapi/v1/extensions", self.get_extensions_list, methods=["GET"], response_model=list[models.ExtensionItem])
 
+        self.add_api_route("/alpha/v1/txt2img", self.alpha_txt2img, methods=["POST"], response_model=models.AlphaTxt2ImgResponse)
+        self.add_api_route("/alpha/v1/file/{filename}", self.alpha_file, methods=["GET"], include_in_schema=False)
+
         if shared.cmd_opts.api_server_stop:
             self.add_api_route("/sdapi/v1/server-kill", self.kill_webui, methods=["POST"])
             self.add_api_route("/sdapi/v1/server-restart", self.restart_webui, methods=["POST"])
@@ -270,6 +276,82 @@ class Api:
         self.embedding_db = modules.textual_inversion.textual_inversion.EmbeddingDatabase()
         self.embedding_db.add_embedding_dir(cmd_opts.embeddings_dir)
         self.embedding_db.load_textual_inversion_embeddings(force_reload=True, sync_with_sd_model=False)
+
+
+    def _alpha_output_dir(self) -> Path:
+        out_dir = Path(opts.outdir_txt2img_samples or os.path.join(cmd_opts.data_dir, "outputs", "txt2img-images"))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        return out_dir
+
+
+    def alpha_file(self, filename: str):
+        base = self._alpha_output_dir().resolve()
+        full = (base / filename).resolve()
+
+        if base not in full.parents and full != base:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+
+        if not full.is_file():
+            raise HTTPException(status_code=404, detail="File not found")
+
+        return FileResponse(path=str(full), media_type="image/png", filename=full.name)
+
+
+    def alpha_txt2img(self, req: models.AlphaTxt2ImgRequest, request: Request):
+        # Fixed defaults from your UI screenshot
+        payload = models.StableDiffusionTxt2ImgProcessingAPI(
+            prompt=req.prompt,
+            negative_prompt=req.negative_prompt,
+            steps=20,
+            sampler_name="DPM++ 2M SDE",
+            scheduler="Karras",
+            cfg_scale=5,
+            seed=(req.seed if req.seed is not None else 12345),
+            width=1024,
+            height=1024,
+            send_images=True,
+            save_images=False,
+            alwayson_scripts={
+                "LayerDiffuse": {
+                    "args": [
+                        True,
+                        "(SDXL) Only Generate Transparent Image (Attention Injection)",
+                        1.0,
+                        1.0,
+                        None,
+                        None,
+                        None,
+                        "Crop and Resize",
+                        False,
+                        "",
+                        "",
+                        "",
+                    ]
+                }
+            },
+        )
+
+        res = self.text2imgapi(payload)
+        if not res.images:
+            raise HTTPException(status_code=500, detail="No image returned")
+
+        img_b64 = res.images[0]
+        if isinstance(img_b64, bytes):
+            img_b64 = img_b64.decode("utf-8")
+
+        png_bytes = base64.b64decode(img_b64)
+
+        token = secrets.token_urlsafe(16)
+        filename = f"alpha_{int(time.time())}_{token}.png"
+        out_path = self._alpha_output_dir() / filename
+        out_path.write_bytes(png_bytes)
+
+        # Build absolute URL
+        root_path = request.scope.get("root_path") or ""
+        base_url = str(request.base_url).rstrip("/")
+        url = f"{base_url}{root_path}/alpha/v1/file/{filename}"
+
+        return models.AlphaTxt2ImgResponse(url=url, filename=filename, info=res.info)
 
 
 

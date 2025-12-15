@@ -334,3 +334,15 @@ class ExtensionItem(BaseModel):
     version: str = Field(title="Version", description="Extension Version")
     commit_date: int = Field(title="Commit Date", description="Extension Repository Commit Date")
     enabled: bool = Field(title="Enabled", description="Flag specifying whether this extension is enabled")
+
+
+class AlphaTxt2ImgRequest(BaseModel):
+    prompt: str = Field(title="Prompt")
+    negative_prompt: str = Field(default="bad, ugly", title="Negative Prompt")
+    seed: int | None = Field(default=None, title="Seed")
+
+
+class AlphaTxt2ImgResponse(BaseModel):
+    url: str = Field(title="URL")
+    filename: str = Field(title="Filename")
+    info: str | None = Field(default=None, title="Info")
