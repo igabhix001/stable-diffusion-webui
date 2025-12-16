@@ -1,0 +1,7 @@
+{
+    "input": {
+        "prompt": "a red apple, high quality, transparent background",
+        "negative_prompt": "bad, ugly",
+        "seed": 12345
+    }
+}
