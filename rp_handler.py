@@ -45,9 +45,11 @@ def wait_for_forge_api(max_retries: int = 300, retry_interval: float = 1.0) -> b
     return False
 
 
-def generate_image(prompt: str, negative_prompt: str = "bad, ugly", seed: int = None) -> dict:
+def generate_image(prompt: str, negative_prompt: str = "bad, ugly", **kwargs) -> dict:
     """
     Generate a transparent PNG image using the Forge Alpha API.
+    
+    Accepts all optional parameters supported by the API.
     
     Returns response matching the original /alpha/v1/txt2img format:
     - url: Data URL (data:image/png;base64,...) that works in browsers
@@ -59,8 +61,18 @@ def generate_image(prompt: str, negative_prompt: str = "bad, ugly", seed: int = 
         "negative_prompt": negative_prompt,
     }
     
-    if seed is not None:
-        payload["seed"] = seed
+    # Add all optional parameters if provided
+    optional_params = [
+        "seed", "steps", "sampler_name", "scheduler", "cfg_scale",
+        "width", "height", "batch_size", "n_iter", "restore_faces",
+        "tiling", "subseed", "subseed_strength", "seed_resize_from_h",
+        "seed_resize_from_w", "eta", "s_churn", "s_tmax", "s_tmin",
+        "s_noise", "override_settings", "refiner_checkpoint", "refiner_switch_at"
+    ]
+    
+    for param in optional_params:
+        if param in kwargs and kwargs[param] is not None:
+            payload[param] = kwargs[param]
     
     try:
         # Call the custom alpha endpoint that has LayerDiffuse baked in
@@ -175,14 +187,27 @@ def handler(job: dict) -> dict:
             "error": "Missing required field: prompt"
         }
     
-    # Optional parameters
+    # Extract all parameters from input
     negative_prompt = job_input.get("negative_prompt", "bad, ugly")
-    seed = job_input.get("seed")
     
-    logger.info(f"Processing job: prompt='{prompt[:50]}...' seed={seed}")
+    # Optional parameters that can be passed through
+    optional_params = {}
+    param_names = [
+        "seed", "steps", "sampler_name", "scheduler", "cfg_scale",
+        "width", "height", "batch_size", "n_iter", "restore_faces",
+        "tiling", "subseed", "subseed_strength", "seed_resize_from_h",
+        "seed_resize_from_w", "eta", "s_churn", "s_tmax", "s_tmin",
+        "s_noise", "override_settings", "refiner_checkpoint", "refiner_switch_at"
+    ]
     
-    # Generate the image
-    result = generate_image(prompt, negative_prompt, seed)
+    for param in param_names:
+        if param in job_input:
+            optional_params[param] = job_input[param]
+    
+    logger.info(f"Processing job: prompt='{prompt[:50]}...' params={list(optional_params.keys())}")
+    
+    # Generate the image with all parameters
+    result = generate_image(prompt, negative_prompt, **optional_params)
     
     if result["status"] == "success":
         logger.info(f"Successfully generated image: {result['filename']}")

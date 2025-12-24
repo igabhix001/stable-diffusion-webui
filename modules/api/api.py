@@ -298,17 +298,52 @@ class Api:
 
 
     def alpha_txt2img(self, req: models.AlphaTxt2ImgRequest, request: Request):
-        # Fixed defaults from your UI screenshot
+        # Default configuration - client can override any of these
+        defaults = {
+            "steps": 20,
+            "sampler_name": "DPM++ 2M SDE",
+            "scheduler": "Karras",
+            "cfg_scale": 5,
+            "seed": 12345,
+            "width": 1024,
+            "height": 1024,
+            "batch_size": 1,
+            "n_iter": 1,
+            "restore_faces": False,
+            "tiling": False,
+            "subseed": -1,
+            "subseed_strength": 0,
+            "seed_resize_from_h": -1,
+            "seed_resize_from_w": -1,
+        }
+        
+        # Build payload with client overrides or defaults
         payload = models.StableDiffusionTxt2ImgProcessingAPI(
             prompt=req.prompt,
             negative_prompt=req.negative_prompt,
-            steps=20,
-            sampler_name="DPM++ 2M SDE",
-            scheduler="Karras",
-            cfg_scale=5,
-            seed=(req.seed if req.seed is not None else 12345),
-            width=1024,
-            height=1024,
+            steps=req.steps if req.steps is not None else defaults["steps"],
+            sampler_name=req.sampler_name if req.sampler_name is not None else defaults["sampler_name"],
+            scheduler=req.scheduler if req.scheduler is not None else defaults["scheduler"],
+            cfg_scale=req.cfg_scale if req.cfg_scale is not None else defaults["cfg_scale"],
+            seed=req.seed if req.seed is not None else defaults["seed"],
+            width=req.width if req.width is not None else defaults["width"],
+            height=req.height if req.height is not None else defaults["height"],
+            batch_size=req.batch_size if req.batch_size is not None else defaults["batch_size"],
+            n_iter=req.n_iter if req.n_iter is not None else defaults["n_iter"],
+            restore_faces=req.restore_faces if req.restore_faces is not None else defaults["restore_faces"],
+            tiling=req.tiling if req.tiling is not None else defaults["tiling"],
+            subseed=req.subseed if req.subseed is not None else defaults["subseed"],
+            subseed_strength=req.subseed_strength if req.subseed_strength is not None else defaults["subseed_strength"],
+            seed_resize_from_h=req.seed_resize_from_h if req.seed_resize_from_h is not None else defaults["seed_resize_from_h"],
+            seed_resize_from_w=req.seed_resize_from_w if req.seed_resize_from_w is not None else defaults["seed_resize_from_w"],
+            eta=req.eta,
+            s_churn=req.s_churn,
+            s_tmax=req.s_tmax,
+            s_tmin=req.s_tmin,
+            s_noise=req.s_noise,
+            override_settings=req.override_settings,
+            refiner_checkpoint=req.refiner_checkpoint,
+            refiner_switch_at=req.refiner_switch_at,
             send_images=True,
             save_images=False,
             alwayson_scripts={
