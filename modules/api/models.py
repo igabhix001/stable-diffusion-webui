@@ -362,9 +362,21 @@ class AlphaTxt2ImgRequest(BaseModel):
     override_settings: dict | None = Field(default=None, title="Override Settings", description="Override settings")
     refiner_checkpoint: str | None = Field(default=None, title="Refiner Checkpoint", description="Refiner checkpoint")
     refiner_switch_at: float | None = Field(default=None, title="Refiner Switch At", description="Refiner switch at")
+    # Model/Generator selection
+    generator_type: str | None = Field(default=None, title="Generator Type", description="Generator preset: 'general', 'logo', 'icon_3d', 'aesthetic' (default: general)")
+    checkpoint: str | None = Field(default=None, title="Checkpoint", description="Base model checkpoint name (overrides generator_type)")
+    loras: list | None = Field(default=None, title="LoRAs", description="List of LoRAs to apply: [{'name': 'lora_name', 'weight': 0.8}]")
+    # LayerDiffuse extension parameters (can override defaults)
+    layerdiffuse_enabled: bool | None = Field(default=None, title="LayerDiffuse Enabled", description="Enable LayerDiffuse extension (default: True)")
+    layerdiffuse_method: str | None = Field(default=None, title="LayerDiffuse Method", description="LayerDiffuse method (default: '(SDXL) Only Generate Transparent Image (Attention Injection)')")
+    layerdiffuse_weight: float | None = Field(default=None, title="LayerDiffuse Weight", description="LayerDiffuse weight (default: 1.0)")
+    layerdiffuse_stop_at: float | None = Field(default=None, title="LayerDiffuse Stop At", description="LayerDiffuse stop at (default: 1.0)")
+    layerdiffuse_resize_mode: str | None = Field(default=None, title="LayerDiffuse Resize Mode", description="LayerDiffuse resize mode (default: 'Crop and Resize')")
+    layerdiffuse_output_origin: bool | None = Field(default=None, title="LayerDiffuse Output Origin", description="LayerDiffuse output origin (default: False)")
 
 
 class AlphaTxt2ImgResponse(BaseModel):
-    url: str = Field(title="URL")
+    url: str = Field(title="Image URL")
     filename: str = Field(title="Filename")
-    info: str | None = Field(default=None, title="Info")
+    image_base64: str | None = Field(default=None, title="Image Base64", description="Base64 encoded image data")
+    info: str = Field(title="Generation Info")

@@ -298,6 +298,66 @@ class Api:
 
 
     def alpha_txt2img(self, req: models.AlphaTxt2ImgRequest, request: Request):
+        # Generator presets - maps generator_type to checkpoint and optional LoRAs
+        # Supports both JuggernautXL v6 and v9
+        GENERATOR_PRESETS = {
+            "general": {
+                "checkpoint": "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
+                "loras": [],
+                "prompt_prefix": "",
+                "trigger_words": "",
+            },
+            "general_v6": {
+                "checkpoint": "juggernautXL_version6Rundiffusion.safetensors",
+                "loras": [],
+                "prompt_prefix": "",
+                "trigger_words": "",
+            },
+            "aesthetic": {
+                "checkpoint": "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
+                "loras": [],
+                "prompt_prefix": "high quality, detailed, masterpiece, best quality, ",
+                "trigger_words": "",
+            },
+            "logo": {
+                "checkpoint": "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
+                "loras": [{"name": "geometric-logo", "weight": 0.85}],
+                "prompt_prefix": "",
+                "trigger_words": "flat-line-logo, geometric, ",
+            },
+            "icon_3d": {
+                "checkpoint": "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
+                "loras": [{"name": "3d-icon-lora", "weight": 0.85}],
+                "prompt_prefix": "",
+                "trigger_words": "<s0><s1> ",
+            },
+        }
+        
+        # Determine which generator preset to use
+        generator_type = req.generator_type or "general"
+        preset = GENERATOR_PRESETS.get(generator_type, GENERATOR_PRESETS["general"])
+        
+        # Allow explicit checkpoint override
+        selected_checkpoint = req.checkpoint if req.checkpoint else preset["checkpoint"]
+        
+        # Allow explicit LoRA override, otherwise use preset
+        selected_loras = req.loras if req.loras is not None else preset["loras"]
+        
+        # Build prompt with trigger words and prefix if using preset
+        final_prompt = req.prompt
+        if not req.checkpoint and not req.loras:  # Only add preset enhancements if using defaults
+            # Add trigger words first (required for LoRA activation)
+            final_prompt = preset["trigger_words"] + preset["prompt_prefix"] + req.prompt
+        
+        # Add LoRA tags to prompt for Forge to load them
+        lora_prompt_additions = ""
+        for lora in selected_loras:
+            lora_name = lora.get("name", "")
+            lora_weight = lora.get("weight", 0.85)
+            lora_prompt_additions += f" <lora:{lora_name}:{lora_weight}>"
+        
+        final_prompt = final_prompt + lora_prompt_additions
+        
         # Default configuration - client can override any of these
         defaults = {
             "steps": 20,
@@ -317,9 +377,31 @@ class Api:
             "seed_resize_from_w": -1,
         }
         
+        # LayerDiffuse defaults (can be overridden)
+        layerdiffuse_defaults = {
+            "enabled": True,
+            "method": "(SDXL) Only Generate Transparent Image (Attention Injection)",
+            "weight": 1.0,
+            "stop_at": 1.0,
+            "resize_mode": "Crop and Resize",
+            "output_origin": False,
+        }
+        
+        # Prepare override_settings with checkpoint selection
+        override_settings = req.override_settings.copy() if req.override_settings else {}
+        override_settings["sd_model_checkpoint"] = selected_checkpoint
+        
+        # Build LayerDiffuse args with client overrides
+        layerdiffuse_enabled = req.layerdiffuse_enabled if req.layerdiffuse_enabled is not None else layerdiffuse_defaults["enabled"]
+        layerdiffuse_method = req.layerdiffuse_method if req.layerdiffuse_method else layerdiffuse_defaults["method"]
+        layerdiffuse_weight = req.layerdiffuse_weight if req.layerdiffuse_weight is not None else layerdiffuse_defaults["weight"]
+        layerdiffuse_stop_at = req.layerdiffuse_stop_at if req.layerdiffuse_stop_at is not None else layerdiffuse_defaults["stop_at"]
+        layerdiffuse_resize_mode = req.layerdiffuse_resize_mode if req.layerdiffuse_resize_mode else layerdiffuse_defaults["resize_mode"]
+        layerdiffuse_output_origin = req.layerdiffuse_output_origin if req.layerdiffuse_output_origin is not None else layerdiffuse_defaults["output_origin"]
+        
         # Build payload with client overrides or defaults
         payload = models.StableDiffusionTxt2ImgProcessingAPI(
-            prompt=req.prompt,
+            prompt=final_prompt,
             negative_prompt=req.negative_prompt,
             steps=req.steps if req.steps is not None else defaults["steps"],
             sampler_name=req.sampler_name if req.sampler_name is not None else defaults["sampler_name"],
@@ -341,7 +423,7 @@ class Api:
             s_tmax=req.s_tmax,
             s_tmin=req.s_tmin,
             s_noise=req.s_noise,
-            override_settings=req.override_settings,
+            override_settings=override_settings,
             refiner_checkpoint=req.refiner_checkpoint,
             refiner_switch_at=req.refiner_switch_at,
             send_images=True,
@@ -349,15 +431,15 @@ class Api:
             alwayson_scripts={
                 "LayerDiffuse": {
                     "args": [
-                        True,
-                        "(SDXL) Only Generate Transparent Image (Attention Injection)",
-                        1.0,
-                        1.0,
+                        layerdiffuse_enabled,
+                        layerdiffuse_method,
+                        layerdiffuse_weight,
+                        layerdiffuse_stop_at,
                         None,
                         None,
                         None,
-                        "Crop and Resize",
-                        False,
+                        layerdiffuse_resize_mode,
+                        layerdiffuse_output_origin,
                         "",
                         "",
                         "",
@@ -386,7 +468,7 @@ class Api:
         base_url = str(request.base_url).rstrip("/")
         url = f"{base_url}{root_path}/alpha/v1/file/{filename}"
 
-        return models.AlphaTxt2ImgResponse(url=url, filename=filename, info=res.info)
+        return models.AlphaTxt2ImgResponse(url=url, filename=filename, image_base64=img_b64, info=res.info)
 
 
 

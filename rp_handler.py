@@ -67,7 +67,12 @@ def generate_image(prompt: str, negative_prompt: str = "bad, ugly", **kwargs) ->
         "width", "height", "batch_size", "n_iter", "restore_faces",
         "tiling", "subseed", "subseed_strength", "seed_resize_from_h",
         "seed_resize_from_w", "eta", "s_churn", "s_tmax", "s_tmin",
-        "s_noise", "override_settings", "refiner_checkpoint", "refiner_switch_at"
+        "s_noise", "override_settings", "refiner_checkpoint", "refiner_switch_at",
+        # Model/Generator selection parameters
+        "generator_type", "checkpoint", "loras",
+        # LayerDiffuse extension parameters
+        "layerdiffuse_enabled", "layerdiffuse_method", "layerdiffuse_weight",
+        "layerdiffuse_stop_at", "layerdiffuse_resize_mode", "layerdiffuse_output_origin"
     ]
     
     for param in optional_params:
@@ -197,7 +202,9 @@ def handler(job: dict) -> dict:
         "width", "height", "batch_size", "n_iter", "restore_faces",
         "tiling", "subseed", "subseed_strength", "seed_resize_from_h",
         "seed_resize_from_w", "eta", "s_churn", "s_tmax", "s_tmin",
-        "s_noise", "override_settings", "refiner_checkpoint", "refiner_switch_at"
+        "s_noise", "override_settings", "refiner_checkpoint", "refiner_switch_at",
+        # Model/Generator selection parameters
+        "generator_type", "checkpoint", "loras"
     ]
     
     for param in param_names:

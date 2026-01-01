@@ -44,11 +44,30 @@ RUN python -m venv venv && \
     pip install runpod requests
 
 # Download models during build (baked into image)
-# JuggernautXL model
+# ============================================
+# BASE CHECKPOINTS (SDXL-based for LayerDiffuse compatibility)
+# ============================================
 RUN mkdir -p models/Stable-diffusion && \
-    wget -q "https://civitai.com/api/download/models/198530" -O models/Stable-diffusion/juggernautXL_v6.safetensors
+    # JuggernautXL v6 - General purpose, realistic
+    wget -q "https://civitai.com/api/download/models/198530" -O models/Stable-diffusion/juggernautXL_version6Rundiffusion.safetensors && \
+    # JuggernautXL v9 - High quality, photorealistic, best prompt adherence
+    wget -q "https://huggingface.co/RunDiffusion/Juggernaut-XL-v9/resolve/main/Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors" \
+        -O models/Stable-diffusion/Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors
 
-# LayerDiffuse models
+# ============================================
+# LORA MODELS (SDXL-compatible for style variations)
+# ============================================
+RUN mkdir -p models/Lora && \
+    # 3D Icon LoRA - For 3D style icons
+    wget -q "https://huggingface.co/Cicistawberry/3d-icon-lora/resolve/main/3d_icon_lora.safetensors" \
+        -O models/Lora/3d-icon-lora.safetensors && \
+    # Geometric Logo LoRA - For geometric/minimal logos
+    wget -q "https://huggingface.co/Sologo-AI/Geometric-logo/resolve/main/Geometric-logo.safetensors" \
+        -O models/Lora/geometric-logo.safetensors
+
+# ============================================
+# LAYERDIFFUSE MODELS (for transparent PNG output)
+# ============================================
 RUN mkdir -p models/layer_model && \
     wget -q "https://huggingface.co/LayerDiffusion/layerdiffusion-v1/resolve/main/layer_xl_transparent_attn.safetensors" \
         -O models/layer_model/layer_xl_transparent_attn.safetensors && \

@@ -1,20 +1,34 @@
-# LayerDiffuse Alpha API - Runpod Serverless Deployment
+# LayerDiffuse Alpha API - Transparent PNG Generation
 
-## What This Does
+## Overview
 
-This API generates PNG images with **transparent backgrounds** from text prompts using AI.
+This API generates **high-quality PNG images with transparent backgrounds** from text prompts using Stable Diffusion XL with LayerDiffuse extension.
+
+**Key Features:**
+-  **Always Transparent:** Every image has alpha channel (transparent background)
+-  **Multiple Generator Types:** General, Aesthetic, Logo, 3D Icon presets
+-  **LoRA Support:** Add any SDXL-compatible LoRA for custom styles
+-  **Full Parameter Control:** Override any default setting
+-  **Production Ready:** Fast generation with JuggernautXL v9
 
 **Input:** `"a red apple"`  
-**Output:** URL to a PNG image with transparent background
+**Output:** PNG image with transparent background + metadata
 
 ---
 
 ## How It Works
 
 ```
-POST /alpha/v1/txt2img  →  Returns { url, filename }
-GET  /alpha/v1/file/{filename}  →  Serves the PNG image
+POST /alpha/v1/txt2img
+  
+Generate with JuggernautXL v9 + LayerDiffuse
+  
+Returns { url, filename, image_base64, info }
 ```
+
+**Base Model:** JuggernautXL v9 (photorealistic, high aesthetic quality)  
+**Extension:** LayerDiffuse (forced transparent background)  
+**LoRAs Available:** geometric-logo, 3d-icon-lora (+ any SDXL LoRA you add)
 
 ---
 
@@ -91,7 +105,7 @@ A ready-to-use Docker image is available. You can skip building and go directly 
 
 After deployment:
 1. Copy your **Endpoint ID** (looks like: `abc123xyz`)
-2. Go to **Settings** → **API Keys**
+2. Go to **Settings**  **API Keys**
 3. Create or copy your **API Key**
 
 ---
@@ -247,7 +261,7 @@ POST https://api.runpod.ai/v2/{ENDPOINT_ID}/runsync
 | `width` | integer | No | 1024 | Image width in pixels (must be multiple of 8) |
 | `height` | integer | No | 1024 | Image height in pixels (must be multiple of 8) |
 | `batch_size` | integer | No | 1 | Number of images to generate per request |
-| `n_iter` | integer | No | 1 | Number of iterations (total images = batch_size × n_iter) |
+| `n_iter` | integer | No | 1 | Number of iterations (total images = batch_size  n_iter) |
 | `restore_faces` | boolean | No | false | Apply face restoration |
 | `tiling` | boolean | No | false | Generate tileable/seamless images |
 | `subseed` | integer | No | -1 | Subseed for variation |
@@ -262,41 +276,226 @@ POST https://api.runpod.ai/v2/{ENDPOINT_ID}/runsync
 | `override_settings` | object | No | {} | Override model settings |
 | `refiner_checkpoint` | string | No | null | Refiner model checkpoint |
 | `refiner_switch_at` | float | No | null | When to switch to refiner (0-1) |
+| `generator_type` | string | No | "general" | Generator preset: "general", "aesthetic", "logo", "icon_3d" |
+| `checkpoint` | string | No | null | Explicit checkpoint name (overrides generator_type) |
+| `loras` | array | No | null | List of LoRAs: `[{"name": "lora_name", "weight": 0.8}]` |
+
+---
+
+## Generator Types (Presets)
+
+The API supports 5 generator presets optimized for different use cases. **LayerDiffuse is enabled by default** for transparent PNG backgrounds (can be overridden).
+
+| Generator Type | Checkpoint | LoRAs | Trigger Words | Best For |
+|----------------|------------|-------|---------------|----------|
+| `general` | JuggernautXL v9 | None | - | Realistic images, general purpose |
+| `general_v6` | JuggernautXL v6 | None | - | Legacy v6 checkpoint |
+| `aesthetic` | JuggernautXL v9 | None | - | High quality, enhanced prompts |
+| `logo` | JuggernautXL v9 | geometric-logo (0.85) | `flat-line-logo, geometric` | Geometric/minimal logos |
+| `icon_3d` | JuggernautXL v9 | 3d-icon-lora (0.85) | `<s0><s1>` | 3D glossy icons |
+
+### Important Notes
+- **LayerDiffuse enabled by default** - can be disabled with `layerdiffuse_enabled: false`
+- **Trigger words are auto-added** when using presets (logo/icon_3d)
+- **JuggernautXL v9** is default, v6 available via `general_v6` preset
+- **All LayerDiffuse parameters can be overridden** - see LayerDiffuse section below
+- You can override checkpoint/LoRAs with custom values
+
+### Example 1: General Preset (Realistic)
+```json
+{
+  "input": {
+    "prompt": "a red apple on wooden table, photorealistic",
+    "generator_type": "general"
+  }
+}
+```
+**Output:** Realistic apple image with transparent background
+
+### Example 2: Aesthetic Preset (Enhanced Quality)
+```json
+{
+  "input": {
+    "prompt": "beautiful sunset over mountains, vibrant colors",
+    "generator_type": "aesthetic",
+    "steps": 30,
+    "cfg_scale": 7.0
+  }
+}
+```
+**Output:** High-quality sunset with prompt enhancement: "high quality, detailed, masterpiece, best quality, beautiful sunset..."
+
+### Example 3: Logo Preset (Geometric LoRA)
+```json
+{
+  "input": {
+    "prompt": "minimalist fox logo, orange and white, simple",
+    "generator_type": "logo"
+  }
+}
+```
+**Output:** Geometric logo with auto-added trigger words: "flat-line-logo, geometric, minimalist fox logo..."
+
+### Example 4: 3D Icon Preset (3D LoRA)
+```json
+{
+  "input": {
+    "prompt": "shopping cart icon, glossy, colorful",
+    "generator_type": "icon_3d",
+    "steps": 25
+  }
+}
+```
+**Output:** 3D glossy icon with auto-added trigger: "<s0><s1> shopping cart icon..."
+
+### Example 5: Custom LoRA Override
+```json
+{
+  "input": {
+    "prompt": "geometric wolf logo, blue and silver",
+    "checkpoint": "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
+    "loras": [
+      {"name": "geometric-logo", "weight": 0.95}
+    ]
+  }
+}
+```
+**Output:** Custom LoRA weight (0.95) without auto-added trigger words
+
+### Example 6: Add Your Own SDXL LoRA
+```json
+{
+  "input": {
+    "prompt": "cyberpunk city, neon lights",
+    "loras": [
+      {"name": "your-custom-lora", "weight": 0.8}
+    ]
+  }
+}
+```
+**Note:** Place your `.safetensors` LoRA file in `models/Lora/` folder and use filename (without extension) as name
+
+---
+
+## Available Models
+
+### Base Checkpoints
+
+| Checkpoint Name | Description | Use Case |
+|-----------------|-------------|----------|
+| `Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors` | JuggernautXL v9 - High quality, photorealistic, excellent prompt adherence | Default for all presets |
+| `juggernautXL_version6Rundiffusion.safetensors` | JuggernautXL v6 - Legacy version, general purpose | Use with `general_v6` preset |
+
+**Note:** Both v6 and v9 are included. v9 is recommended for best quality.
+
+### Built-in LoRAs
+
+| LoRA Name | Trigger Words | Weight Range | Description |
+|-----------|---------------|--------------|-------------|
+| `geometric-logo` | `flat-line-logo, geometric` | 0.7-0.95 | Geometric/minimal logo designs with flat lines |
+| `3d-icon-lora` | `<s0><s1>` | 0.7-0.95 | 3D glossy icon style |
+
+### Adding Custom SDXL LoRAs
+
+**Any SDXL-compatible LoRA** can be used with this API:
+
+1. **Place LoRA file** in Docker: `models/Lora/your-lora-name.safetensors`
+2. **Use in API** with filename (no extension):
+   ```json
+   {
+     "loras": [{"name": "your-lora-name", "weight": 0.8}]
+   }
+   ```
+3. **Add trigger words** to your prompt if the LoRA requires them
+
+**Example LoRA sources:**
+- Civitai.com (filter by SDXL)
+- HuggingFace (search "SDXL LoRA")
+- Ensure LoRA is trained on SDXL base (not SD1.5 or Flux)
+
+---
+
+## LayerDiffuse Extension Parameters
+
+LayerDiffuse is **enabled by default** to generate transparent PNG backgrounds. All parameters can be overridden:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `layerdiffuse_enabled` | boolean | `true` | Enable/disable LayerDiffuse extension |
+| `layerdiffuse_method` | string | `"(SDXL) Only Generate Transparent Image (Attention Injection)"` | LayerDiffuse generation method |
+| `layerdiffuse_weight` | float | `1.0` | LayerDiffuse effect strength (0.0-2.0) |
+| `layerdiffuse_stop_at` | float | `1.0` | When to stop applying LayerDiffuse (0.0-1.0) |
+| `layerdiffuse_resize_mode` | string | `"Crop and Resize"` | How to handle image resizing |
+| `layerdiffuse_output_origin` | boolean | `false` | Output original image alongside transparent |
+
+### Available LayerDiffuse Methods
+- `(SDXL) Only Generate Transparent Image (Attention Injection)` - Default, best quality
+- Other SDXL LayerDiffuse methods supported by the extension
+
+### Example: Disable Transparency
+```json
+{
+  "input": {
+    "prompt": "beautiful sunset over mountains",
+    "layerdiffuse_enabled": false
+  }
+}
+```
+
+### Example: Adjust LayerDiffuse Strength
+```json
+{
+  "input": {
+    "prompt": "product photo of a watch",
+    "layerdiffuse_weight": 0.8,
+    "layerdiffuse_stop_at": 0.9
+  }
+}
+```
+
+---
+
+## Complete Parameter Reference
 
 ### Available Samplers
-- `Euler`
-- `Euler a`
-- `LMS`
-- `Heun`
-- `DPM2`
-- `DPM2 a`
-- `DPM++ 2S a`
-- `DPM++ 2M`
-- `DPM++ 2M SDE` (default)
-- `DPM++ 2M SDE Heun`
-- `DPM++ 3M SDE`
-- `DPM fast`
-- `DPM adaptive`
-- `LMS Karras`
-- `DPM2 Karras`
-- `DPM2 a Karras`
-- `DPM++ 2S a Karras`
-- `DPM++ 2M Karras`
-- `DPM++ 2M SDE Karras`
-- `DPM++ 3M SDE Karras`
-- `DDIM`
-- `PLMS`
-- `UniPC`
+
+**Fast Samplers (15-25 steps recommended):**
+- `DPM++ 2M SDE`  **Default** - Best quality/speed balance
+- `DPM++ 2M Karras` - High quality, slightly slower
+- `Euler a` - Fast, good for creative variations
+- `DPM++ 2M` - Consistent results
+
+**Quality Samplers (25-40 steps recommended):**
+- `DPM++ 3M SDE` - Highest quality, slower
+- `DPM++ 2M SDE Heun` - Very high quality
+- `UniPC` - Good detail preservation
+
+**Other Samplers:**
+- `Euler` - Simple, fast
+- `LMS` - Legacy sampler
+- `Heun` - High quality, slow
+- `DPM2`, `DPM2 a` - Older DPM variants
+- `DPM++ 2S a` - Alternative DPM
+- `DPM fast`, `DPM adaptive` - Experimental
+- `LMS Karras`, `DPM2 Karras`, `DPM2 a Karras`, `DPM++ 2S a Karras`, `DPM++ 3M SDE Karras` - Karras noise schedule variants
+- `DDIM`, `PLMS` - Legacy samplers
+
+**Recommendation:** Use `DPM++ 2M SDE` (default) with 20-25 steps for best results.
 
 ### Available Schedulers
-- `Karras` (default)
-- `Exponential`
-- `Polyexponential`
-- `SGM Uniform`
-- `Simple`
-- `Normal`
-- `DDIM`
-- `Automatic`
+
+| Scheduler | Description | Best For |
+|-----------|-------------|----------|
+| `Karras`  | **Default** - Improved noise schedule | General use, best quality |
+| `Exponential` | Exponential noise decay | Smooth transitions |
+| `Polyexponential` | Polynomial exponential | Alternative to Exponential |
+| `SGM Uniform` | Uniform noise distribution | Experimental |
+| `Simple` | Simple linear schedule | Basic generations |
+| `Normal` | Standard schedule | Legacy compatibility |
+| `DDIM` | DDIM-specific schedule | When using DDIM sampler |
+| `Automatic` | Auto-select based on sampler | Let system decide |
+
+**Recommendation:** Use `Karras` (default) for best results with most samplers.
 
 ### Response
 ```json
@@ -316,52 +515,139 @@ POST https://api.runpod.ai/v2/{ENDPOINT_ID}/runsync
 
 ## Default Generation Settings
 
-The API uses these default settings (all can be overridden):
+The API uses these default settings. **Every parameter can be overridden** by including it in your request:
 
-- **Image Size:** 1024x1024 pixels
-- **Steps:** 20
-- **Sampler:** DPM++ 2M SDE
-- **Scheduler:** Karras
-- **CFG Scale:** 5
-- **Seed:** 12345
-- **Format:** PNG with transparency (LayerDiffuse - always enabled)
+| Parameter | Default Value | Override Example |
+|-----------|---------------|------------------|
+| **Image Size** | 10241024 | `"width": 768, "height": 1024` |
+| **Steps** | 20 | `"steps": 30` |
+| **Sampler** | DPM++ 2M SDE | `"sampler_name": "Euler a"` |
+| **Scheduler** | Karras | `"scheduler": "Exponential"` |
+| **CFG Scale** | 5.0 | `"cfg_scale": 7.5` |
+| **Seed** | 12345 | `"seed": -1` (random) |
+| **Negative Prompt** | "bad, ugly" | `"negative_prompt": "your custom negative"` |
+| **Batch Size** | 1 | `"batch_size": 4` |
+| **Format** | PNG + Alpha | **Cannot be changed** (LayerDiffuse always enabled) |
 
-**Note:** All parameters except `prompt` are optional. If not provided, the API falls back to these defaults.
+### Important Notes
+
+ **All parameters are optional** except `prompt`  
+ **Any default can be overridden** by specifying it in your request  
+ **LayerDiffuse is ALWAYS enabled** - transparent background is guaranteed  
+ **Seed = -1** generates random seed each time  
+ **Higher steps** = better quality but slower (20-30 recommended)  
+ **CFG Scale 5-8** works best (higher = follows prompt more strictly)
 
 ---
 
 ## Testing the API
 
-### Test 1: Minimal Request (Defaults Only)
+### Test 1: Fox Cartoon  
+
+
+
+```bash
+curl -X POST "http://127.0.0.1:7860/alpha/v1/txt2img" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "cute cartoon fox mascot standing, full body, hands on hips, clean outlines, flat shading, vibrant white background, vector style, simple shapes, minimal design, pop icon style, simple, flat-line-logo",
+    "negative_prompt": "blurry, low quality, lowres, cropped, links, deformed, distorted, bad anatomy, oversaturated, noisy, jpeg artifacts, watermark, text, logo",
+    "seed": 12346,
+    "steps": 20,
+    "sampler_name": "DPM++ 2M SDE",
+    "scheduler": "Karras",
+    "cfg_scale": 5,
+    "width": 1024,
+    "height": 1024,
+    "batch_size": 1,
+    "layerdiffuse_enabled": true,
+    "layerdiffuse_method": "(SDXL) Only Generate Transparent Image (Attention Injection)",
+    "layerdiffuse_weight": 1.0,
+    "layerdiffuse_stop_at": 1.0,
+    "layerdiffuse_resize_mode": "Crop and Resize",
+    "layerdiffuse_output_origin": false
+  }'
+```
+
+**PowerShell:**
+```powershell
+$body = @{
+    prompt = "cute cartoon fox mascot standing, full body, hands on hips, clean outlines, flat shading, vibrant white background, vector style, simple shapes, minimal design, pop icon style, simple, flat-line-logo"
+    negative_prompt = "blurry, low quality, lowres, cropped, links, deformed, distorted, bad anatomy, oversaturated, noisy, jpeg artifacts, watermark, text, logo"
+    seed = 12346
+    steps = 20
+    sampler_name = "DPM++ 2M SDE"
+    scheduler = "Karras"
+    cfg_scale = 5
+    width = 1024
+    height = 1024
+    batch_size = 1
+    layerdiffuse_enabled = $true
+    layerdiffuse_method = "(SDXL) Only Generate Transparent Image (Attention Injection)"
+    layerdiffuse_weight = 1.0
+    layerdiffuse_stop_at = 1.0
+    layerdiffuse_resize_mode = "Crop and Resize"
+    layerdiffuse_output_origin = $false
+} | ConvertTo-Json -Depth 3
+
+Invoke-RestMethod -Uri "http://127.0.0.1:7860/alpha/v1/txt2img" -Method POST -Body $body -ContentType "application/json"
+```
+
+**Output:** Transparent PNG with cartoon fox, all UI parameters applied
+
+### Test 2: Coffee Mug 
+
+```bash
+curl -X POST "http://127.0.0.1:7860/alpha/v1/txt2img" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "high quality studio photo of a white ceramic coffee mug with a small blue coffee logo, centered on a pure white background, soft shadows, 3 point lighting, 8k, ultra detailed, clean, minimal, product photography",
+    "negative_prompt": "blurry, low quality, lowres, cropped, links, deformed, distorted, bad anatomy, oversaturated, noisy, jpeg artifacts, watermark, text, logo",
+    "seed": 12346,
+    "steps": 20,
+    "sampler_name": "DPM++ 2M SDE",
+    "scheduler": "Karras",
+    "cfg_scale": 5,
+    "width": 1024,
+    "height": 1024,
+    "layerdiffuse_enabled": false
+  }'
+```
+
+**Output:** coffee mug product photo with white background
+
+
 ```bash
 curl -X POST "https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/runsync" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "input": {
-      "prompt": "a red apple on a wooden table, high quality"
-    }
-  }'
+      "prompt": "minimalist wolf logo, blue and white",
+      "generator_type": "logo",
+      "steps": 25
+    }'
 ```
+**Uses:** Logo preset (auto-adds "flat-line-logo, geometric" + geometric-logo LoRA)
 
-### Test 2: Custom Parameters
+### Test 4: 3D Icon with Custom Settings
 ```bash
 curl -X POST "https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/runsync" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "input": {
-      "prompt": "a red apple on a wooden table, high quality",
-      "negative_prompt": "bad quality, blurry, distorted",
-      "seed": 42,
-      "steps": 30,
-      "cfg_scale": 7.5,
-      "sampler_name": "Euler a"
+      "prompt": "email icon, glossy, blue gradient",
+      "generator_type": "icon_3d",
+      "steps": 25,
+      "cfg_scale": 6.5,
+      "seed": 999
     }
   }'
 ```
+**Uses:** 3D icon preset (auto-adds "<s0><s1>" trigger + 3d-icon-lora LoRA)
 
-### Test 3: Full Configuration Override
+### Test 5: Full Manual Control (All Parameters)
 ```bash
 curl -X POST "https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/runsync" \
   -H "Authorization: Bearer YOUR_API_KEY" \
@@ -382,7 +668,9 @@ curl -X POST "https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/runsync" \
   }'
 ```
 
-### Test 4: PowerShell (Windows)
+**Overrides:** All parameters manually set, landscape aspect ratio, high quality settings
+
+### Test 6: PowerShell (Windows)
 ```powershell
 $headers = @{
     "Authorization" = "Bearer YOUR_API_KEY"
@@ -392,6 +680,7 @@ $body = @{
     input = @{
         prompt = "a cute cat wearing a hat, studio photography"
         negative_prompt = "bad quality, blurry"
+        generator_type = "aesthetic"
         seed = 12345
         steps = 25
         cfg_scale = 6.5
@@ -402,7 +691,7 @@ $body = @{
 Invoke-RestMethod -Uri "https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/runsync" -Method POST -Headers $headers -Body $body
 ```
 
-### Test 5: Python Script
+### Test 7: Python Script
 ```python
 import requests
 import json
@@ -481,7 +770,7 @@ The **first request after idle** takes **2-5 minutes** (cold start) to load the 
 
 ---
 
-## 🚀 Optimization Tips for Maximum Speed
+##  Optimization Tips for Maximum Speed
 
 ### 1. Use H100 or A100 GPUs
 The single biggest factor in generation speed. H100 delivers **2-4 second** generation.
@@ -500,28 +789,101 @@ For multiple images, use `/run` endpoint instead of `/runsync` to queue jobs in 
 
 ---
 
+## Common Mistakes & Troubleshooting
+
+###  Mistake 1: Wrong Checkpoint Name
+**Problem:** Using old checkpoint names like `juggernautXL_v6.safetensors` or `playground-v2.5`  
+**Solution:** Use exact name: `Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors`
+
+**Correct:**
+```json
+{"checkpoint": "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors"}
+```
+
+###  Mistake 2: Wrong LoRA Names
+**Problem:** Using underscores instead of hyphens  
+**Solution:** LoRA names must match filenames exactly:
+-  `geometric-logo` (correct)
+-  `geometric_logo` (wrong)
+-  `3d-icon-lora` (correct)
+-  `3d_icon_lora` (wrong)
+
+###  Mistake 3: Forgetting Trigger Words
+**Problem:** LoRA doesn't activate properly  
+**Solution:** When using custom LoRAs (not presets), add trigger words to your prompt:
+- **geometric-logo:** Add `flat-line-logo, geometric` to prompt
+- **3d-icon-lora:** Add `<s0><s1>` to prompt
+
+**Note:** Presets auto-add trigger words. Only needed when using `loras` parameter directly.
+
+###  Mistake 4: Incompatible LoRA
+**Problem:** LoRA doesn't work or causes errors  
+**Solution:** Only use **SDXL-compatible LoRAs**. Check LoRA base model:
+-  SDXL (works)
+-  SD 1.5 (incompatible)
+-  Flux (incompatible)
+
+###  Mistake 5: Expecting Non-Transparent Output
+**Problem:** Want solid background instead of transparent  
+**Solution:** **Not possible.** LayerDiffuse is always enabled. Every image has transparent background. If you need solid background, add it in post-processing.
+
+###  Mistake 6: Wrong Sampler Name
+**Problem:** Typos in sampler name  
+**Solution:** Use exact names from Available Samplers list:
+-  `DPM++ 2M SDE` (correct)
+-  `DPM++2M SDE` (wrong - missing space)
+-  `Euler a` (correct)
+-  `euler a` (wrong - case sensitive)
+
+---
+
 ## Troubleshooting
 
 ### Problem: Request times out
-**Solution:** First request has a cold start. Wait 2-5 minutes and check status.
+**Solution:** First request has a cold start (2-5 minutes). Wait and check status, or set Min Workers = 1.
 
 ### Problem: "CUDA out of memory"
-**Solution:** Select a GPU with more VRAM (A100 80GB or H100 recommended).
+**Solution:** Select a GPU with more VRAM (24GB minimum). Recommended: A100 80GB or H100.
 
 ### Problem: Status shows "FAILED"
-**Solution:** Check the error message in the response. Common issues:
-- Missing prompt
+**Solution:** Check error message in response. Common issues:
+- Missing `prompt` field (required)
 - Invalid JSON format
+- Wrong checkpoint/LoRA name (case-sensitive)
+- Incompatible LoRA (must be SDXL)
+
+### Problem: LoRA has no effect
+**Solution:**
+1. Verify LoRA filename matches exactly (check hyphens vs underscores)
+2. Add trigger words to prompt if not using preset
+3. Increase LoRA weight (try 0.9-1.0)
+4. Ensure LoRA is SDXL-compatible
+
+### Problem: Image quality is poor
+**Solution:**
+1. Increase steps (try 25-35)
+2. Increase CFG scale (try 6.5-8.0)
+3. Use better sampler: `DPM++ 2M Karras` or `DPM++ 3M SDE`
+4. Add quality keywords: "high quality, detailed, masterpiece"
+5. Use `aesthetic` preset for automatic quality enhancement
+
+### Problem: Transparent background not working
+**Solution:** This is impossible. LayerDiffuse is **always enabled** and **cannot be disabled**. Every image has transparent background. If you're seeing solid background:
+- Check if image viewer supports transparency
+- Verify PNG file has alpha channel (should be RGBA, not RGB)
+- Some viewers show checkerboard pattern for transparency
 
 ---
 
 ## Support
 
 If you encounter issues:
-1. Check the Runpod logs for your endpoint
-2. Verify your API key is correct
-3. Ensure you selected a 24GB GPU
-4. Check that the request JSON is valid
+1. **Check Runpod logs** for your endpoint (detailed error messages)
+2. **Verify API key** is correct and has credits
+3. **Ensure GPU selection** is 24GB minimum (A100/H100 recommended)
+4. **Validate JSON** format using online JSON validator
+5. **Check parameter names** are spelled exactly as documented (case-sensitive)
+6. **Review examples** in this guide and copy exact format
 
 ---
 
